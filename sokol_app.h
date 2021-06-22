@@ -5164,7 +5164,7 @@ _SOKOL_PRIVATE EM_BOOL _sapp_emsc_size_changed(int event_type, const EmscriptenU
 } /* extern "C" */
 #endif
 
-EM_JS(int, sapp_js_debounce_resize, (void), {
+EM_JS(int, sapp_js_delay_resize, (void), {
     setTimeout(() => {
         ccall('_sapp_emsc_do_resize','void');
     }, 50);
@@ -5174,14 +5174,14 @@ _SOKOL_PRIVATE EM_BOOL _sapp_emsc_orientation_changed(int event_type, const Emsc
     _SOKOL_UNUSED(event_type);
     _SOKOL_UNUSED(orientationChangeEvent);
     _SOKOL_UNUSED(user_data);
-    sapp_js_debounce_resize();
+    sapp_js_delay_resize();
     return true;
 }
 
 _SOKOL_PRIVATE EM_BOOL _sapp_emsc_size_changed(int event_type, const EmscriptenUiEvent* ui_event, void* user_data) {
     _SOKOL_UNUSED(event_type);
     _SOKOL_UNUSED(user_data);
-    sapp_js_debounce_resize();
+    sapp_js_delay_resize();
     return true;
 }
 
