@@ -2424,6 +2424,10 @@ _SOKOL_PRIVATE sapp_desc _sapp_desc_defaults(const sapp_desc* in_desc) {
     return desc;
 }
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 _SOKOL_PRIVATE void _sapp_init_state(const sapp_desc* desc) {
     _SAPP_CLEAR(_sapp_t, _sapp);
     _sapp.desc = _sapp_desc_defaults(desc);
@@ -2456,6 +2460,10 @@ _SOKOL_PRIVATE void _sapp_init_state(const sapp_desc* desc) {
     _sapp.fullscreen = _sapp.desc.fullscreen;
     _sapp.mouse.shown = true;
 }
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 _SOKOL_PRIVATE void _sapp_discard_state(void) {
     if (_sapp.clipboard.enabled) {
@@ -3722,8 +3730,14 @@ _SOKOL_PRIVATE void _sapp_ios_show_keyboard(bool shown) {
     }
 }
 
-@implementation _sapp_app_delegate
-- (BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)launchOptions {
+// HiberNote: Below is our change. (Peter)
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+_SOKOL_PRIVATE bool _sapp_app_delegate_didFinishLaunchingWithOptions(NSDictionary* launchOptions)
+{
     CGRect screen_rect = UIScreen.mainScreen.bounds;
     _sapp.ios.window = [[UIWindow alloc] initWithFrame:screen_rect];
     _sapp.window_width = screen_rect.size.width;
@@ -3795,18 +3809,45 @@ _SOKOL_PRIVATE void _sapp_ios_show_keyboard(bool shown) {
     return YES;
 }
 
-- (void)applicationWillResignActive:(UIApplication *)application {
+_SOKOL_PRIVATE void _sapp_app_delegate_applicationWillResignActive(UIApplication* application)
+{
     if (!_sapp.ios.suspended) {
         _sapp.ios.suspended = true;
         _sapp_ios_app_event(SAPP_EVENTTYPE_SUSPENDED);
     }
 }
 
-- (void)applicationDidBecomeActive:(UIApplication *)application {
+_SOKOL_PRIVATE void _sapp_app_delegate_applicationDidBecomeActive(UIApplication* application)
+{
     if (_sapp.ios.suspended) {
         _sapp.ios.suspended = false;
         _sapp_ios_app_event(SAPP_EVENTTYPE_RESUMED);
     }
+}
+
+_SOKOL_PRIVATE void _sapp_app_delegate_applicationWillTerminate(UIApplication* application)
+{
+    _SOKOL_UNUSED(application);
+    _sapp_call_cleanup();
+    _sapp_ios_discard_state();
+    _sapp_discard_state();
+}
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
+@implementation _sapp_app_delegate
+- (BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)launchOptions {
+    return _sapp_app_delegate_didFinishLaunchingWithOptions(launchOptions);
+}
+
+- (void)applicationWillResignActive:(UIApplication *)application {
+    _sapp_app_delegate_applicationWillResignActive(application);
+}
+
+- (void)applicationDidBecomeActive:(UIApplication *)application {
+    _sapp_app_delegate_applicationDidBecomeActive(application);
 }
 
 /* NOTE: this method will rarely ever be called, iOS application
@@ -3814,10 +3855,7 @@ _SOKOL_PRIVATE void _sapp_ios_show_keyboard(bool shown) {
     by the operating system.
 */
 - (void)applicationWillTerminate:(UIApplication *)application {
-    _SOKOL_UNUSED(application);
-    _sapp_call_cleanup();
-    _sapp_ios_discard_state();
-    _sapp_discard_state();
+    _sapp_app_delegate_applicationWillTerminate(application);
 }
 @end
 
@@ -4342,43 +4380,22 @@ _SOKOL_PRIVATE uint32_t _sapp_emsc_touch_event_mods(const EmscriptenTouchEvent* 
     return m;
 }
 
-_SOKOL_PRIVATE EM_BOOL _sapp_emsc_size_changed(int event_type, const EmscriptenUiEvent* ui_event, void* user_data) {
-    _SOKOL_UNUSED(event_type);
-    _SOKOL_UNUSED(user_data);
-    double w, h;
-    emscripten_get_element_css_size(_sapp.html5_canvas_selector, &w, &h);
-    /* The above method might report zero when toggling HTML5 fullscreen,
-       in that case use the window's inner width reported by the
-       emscripten event. This works ok when toggling *into* fullscreen
-       but doesn't properly restore the previous canvas size when switching
-       back from fullscreen.
+/* JS functions to get window size after orientation change */
+EM_JS(int, sapp_js_get_inner_height, (void), {
+    return window.innerHeight;
+});
+EM_JS(int, sapp_js_get_inner_width, (void), {
+    return window.innerWidth;
+});
 
-       In general, due to the HTML5's fullscreen API's flaky nature it is
-       recommended to use 'soft fullscreen' (stretching the WebGL canvas
-       over the browser windows client rect) with a CSS definition like this:
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-            position: absolute;
-            top: 0px;
-            left: 0px;
-            margin: 0px;
-            border: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            display: block;
-    */
-    if (w < 1.0) {
-        w = ui_event->windowInnerWidth;
-    }
-    else {
-        _sapp.window_width = (int) w;
-    }
-    if (h < 1.0) {
-        h = ui_event->windowInnerHeight;
-    }
-    else {
-        _sapp.window_height = (int) h;
-    }
+EMSCRIPTEN_KEEPALIVE void _sapp_emsc_do_resize() {
+    int w, h;
+    w = sapp_js_get_inner_width();
+    h = sapp_js_get_inner_height();
     if (_sapp.desc.high_dpi) {
         _sapp.dpi_scale = emscripten_get_device_pixel_ratio();
     }
@@ -4395,6 +4412,30 @@ _SOKOL_PRIVATE EM_BOOL _sapp_emsc_size_changed(int event_type, const EmscriptenU
         _sapp_init_event(SAPP_EVENTTYPE_RESIZED);
         _sapp_call_event(&_sapp.event);
     }
+}
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
+
+EM_JS(int, sapp_js_debounce_resize, (void), {
+    setTimeout(() => {
+        ccall('_sapp_emsc_do_resize','void');
+    }, 50);
+});
+
+_SOKOL_PRIVATE EM_BOOL _sapp_emsc_orientation_changed(int event_type, const EmscriptenOrientationChangeEvent* orientationChangeEvent, void* user_data) {
+    _SOKOL_UNUSED(event_type);
+    _SOKOL_UNUSED(orientationChangeEvent);
+    _SOKOL_UNUSED(user_data);
+    sapp_js_debounce_resize();
+    return true;
+}
+
+_SOKOL_PRIVATE EM_BOOL _sapp_emsc_size_changed(int event_type, const EmscriptenUiEvent* ui_event, void* user_data) {
+    _SOKOL_UNUSED(event_type);
+    _SOKOL_UNUSED(user_data);
+    sapp_js_debounce_resize();
     return true;
 }
 
@@ -5084,6 +5125,7 @@ _SOKOL_PRIVATE void _sapp_emsc_run(const sapp_desc* desc) {
     else {
         emscripten_get_element_css_size(_sapp.html5_canvas_selector, &w, &h);
         emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, false, _sapp_emsc_size_changed);
+        emscripten_set_orientationchange_callback(0, false, _sapp_emsc_orientation_changed);
     }
     if (_sapp.desc.high_dpi) {
         _sapp.dpi_scale = emscripten_get_device_pixel_ratio();
