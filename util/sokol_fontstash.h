@@ -1773,6 +1773,14 @@ static int _sfons_render_create(void* user_ptr, int width, int height) {
         pip_desc.colors[0].blend.enabled = true;
         pip_desc.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA;
         pip_desc.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+
+
+		// HIBER EDIT BY PETER HILLERSTRÖM
+		pip_desc.depth.write_enabled = true;
+		pip_desc.depth.compare = SG_COMPAREFUNC_LESS_EQUAL;
+		pip_desc.depth.pixel_format = SG_PIXELFORMAT_DEPTH;
+
+
         sfons->pip = sgl_make_pipeline(&pip_desc);
     }
 
