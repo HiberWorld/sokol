@@ -3694,6 +3694,22 @@ _SOKOL_PRIVATE void _sapp_ios_update_dimensions(void) {
 _SOKOL_PRIVATE void _sapp_ios_frame(void) {
     _sapp_ios_update_dimensions();
     _sapp_frame();
+
+    // hiber: make sapp_request_quit work in ios lib
+	/* quit-handling */
+    if (_sapp.quit_requested) {
+        _sapp_init_event(SAPP_EVENTTYPE_QUIT_REQUESTED);
+        _sapp_call_event(&_sapp.event);
+        if (_sapp.quit_requested) {
+            _sapp.quit_ordered = true;
+        }
+    }
+    if (_sapp.quit_ordered) {
+        _sapp_call_cleanup();
+		_sapp_ios_discard_state();
+		_sapp_discard_state();
+    }
+    // End hiber
 }
 
 _SOKOL_PRIVATE void _sapp_ios_show_keyboard(bool shown) {
