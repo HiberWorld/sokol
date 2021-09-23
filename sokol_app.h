@@ -3752,21 +3752,7 @@ _SOKOL_PRIVATE void _sapp_ios_show_keyboard(bool shown) {
 extern "C" {
 #endif
 
-@interface ViewController : UIViewController
-@end
-
-@implementation ViewController
-- (UIRectEdge)preferredScreenEdgesDeferringSystemGestures
-{
-    return UIRectEdgeBottom;
-}
-- (BOOL)prefersHomeIndicatorAutoHidden
-{
-    return false;
-}
-@end
-
-_SOKOL_PRIVATE bool _sapp_app_delegate_didFinishLaunchingWithOptions(NSDictionary* launchOptions)
+_SOKOL_PRIVATE bool _sapp_app_delegate_didFinishLaunchingWithOptions(NSDictionary* launchOptions, UIViewController* viewController)
 {
     CGRect screen_rect = UIScreen.mainScreen.bounds;
     _sapp.ios.window = [[UIWindow alloc] initWithFrame:screen_rect];
@@ -3795,7 +3781,11 @@ _SOKOL_PRIVATE bool _sapp_app_delegate_didFinishLaunchingWithOptions(NSDictionar
         _sapp.ios.view.autoResizeDrawable = false;
         _sapp.ios.view.userInteractionEnabled = YES;
         _sapp.ios.view.multipleTouchEnabled = YES;
-        _sapp.ios.view_ctrl = [[ViewController alloc] init];
+		if(viewController != nullptr) {
+			_sapp.ios.view_ctrl = viewController;
+		} else {
+			_sapp.ios.view_ctrl = [[UIViewController alloc] init];
+		}
         _sapp.ios.view_ctrl.modalPresentationStyle = UIModalPresentationFullScreen;
         _sapp.ios.view_ctrl.view = _sapp.ios.view;
         _sapp.ios.window.rootViewController = _sapp.ios.view_ctrl;
@@ -3869,7 +3859,7 @@ _SOKOL_PRIVATE void _sapp_app_delegate_applicationWillTerminate(UIApplication* a
 
 @implementation _sapp_app_delegate
 - (BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)launchOptions {
-    return _sapp_app_delegate_didFinishLaunchingWithOptions(launchOptions);
+    return _sapp_app_delegate_didFinishLaunchingWithOptions(launchOptions, nullptr);
 }
 
 - (void)applicationWillResignActive:(UIApplication *)application {
