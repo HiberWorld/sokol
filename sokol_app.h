@@ -4425,6 +4425,20 @@ _SOKOL_PRIVATE void _sapp_ios_show_keyboard(bool shown) {
 extern "C" {
 #endif
 
+@interface ViewController : UIViewController
+@end
+
+@implementation ViewController
+- (UIRectEdge)preferredScreenEdgesDeferringSystemGestures
+{
+    return UIRectEdgeBottom;
+}
+- (BOOL)prefersHomeIndicatorAutoHidden
+{
+    return false;
+}
+@end
+
 _SOKOL_PRIVATE bool _sapp_app_delegate_didFinishLaunchingWithOptions(NSDictionary* launchOptions)
 {
     CGRect screen_rect = UIScreen.mainScreen.bounds;
@@ -4455,7 +4469,7 @@ _SOKOL_PRIVATE bool _sapp_app_delegate_didFinishLaunchingWithOptions(NSDictionar
         _sapp.ios.view.autoResizeDrawable = false;
         _sapp.ios.view.userInteractionEnabled = YES;
         _sapp.ios.view.multipleTouchEnabled = YES;
-        _sapp.ios.view_ctrl = [[UIViewController alloc] init];
+        _sapp.ios.view_ctrl = [[ViewController alloc] init];
         _sapp.ios.view_ctrl.modalPresentationStyle = UIModalPresentationFullScreen;
         _sapp.ios.view_ctrl.view = _sapp.ios.view;
         _sapp.ios.window.rootViewController = _sapp.ios.view_ctrl;
