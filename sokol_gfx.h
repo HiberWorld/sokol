@@ -4268,7 +4268,7 @@ typedef struct {
     bool d3dcompiler_dll_load_failed;
     pD3DCompile D3DCompile_func;
 
-    // These "null-values" seems to be needed to currently show noesis 
+    // These "null-values" seems to be needed to currently show noesis
     // Check _sg_d3d11_clear_state() for more details. (HIBER - Eigil - 2021-08-10)
     /* the following arrays are used for unbinding resources, they will always contain zeroes */
     ID3D11RenderTargetView* zero_rtvs[SG_MAX_COLOR_ATTACHMENTS];
@@ -9123,7 +9123,7 @@ _SOKOL_PRIVATE void _sg_d3d11_discard_backend(void) {
 _SOKOL_PRIVATE void _sg_d3d11_clear_state(void) {
     /* clear all the device context state, so that resource refs don't keep stuck in the d3d device context */
     // It seems that letting d3d11 clear its own state doesn't work as excpected.
-    // Noesis doesn't work as inteded with the latest version,	I've therefore 
+    // Noesis doesn't work as inteded with the latest version,	I've therefore
     // implemented the previous clearing method which did. (HIBER - Eigil - 2021-08-10)
     // _sg_d3d11_ClearState(_sg.d3d11.ctx);
     _sg_d3d11_OMSetRenderTargets(_sg.d3d11.ctx, SG_MAX_COLOR_ATTACHMENTS, _sg.d3d11.zero_rtvs, NULL);
@@ -11118,6 +11118,15 @@ _SOKOL_PRIVATE void _sg_mtl_discard_buffer(_sg_buffer_t* buf) {
 }
 
 _SOKOL_PRIVATE void _sg_mtl_copy_image_data(const _sg_image_t* img, __unsafe_unretained id<MTLTexture> mtl_tex, const sg_image_data* data) {
+
+    // Hiber Edit Peter 2021-09-30: Need to pass 0 to bytesPerImage for PVRTC textures.
+    // Issue: https://github.com/floooh/sokol/issues/566
+    bool isPVRTC = false;
+    if (img->cmn.pixel_format == SG_PIXELFORMAT_PVRTC_RGB_4BPP ||
+        img->cmn.pixel_format == SG_PIXELFORMAT_PVRTC_RGBA_4BPP) {
+        isPVRTC = true;
+    }
+
     const int num_faces = (img->cmn.type == SG_IMAGETYPE_CUBE) ? 6:1;
     const int num_slices = (img->cmn.type == SG_IMAGETYPE_ARRAY) ? img->cmn.num_slices : 1;
     for (int face_index = 0; face_index < num_faces; face_index++) {
