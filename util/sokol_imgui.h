@@ -324,6 +324,7 @@ typedef struct {
     sg_range indices;
 
     #if !defined(SOKOL_IMGUI_NO_SOKOL_APP)
+	bool hadTextInputLastFrame;
     bool btn_down[SAPP_MAX_MOUSEBUTTONS];
     bool btn_up[SAPP_MAX_MOUSEBUTTONS];
     uint8_t keys_down[SIMGUI_MAX_KEY_VALUE];     // bits 0..3 or modifiers, != 0 is key-down
@@ -1886,9 +1887,10 @@ SOKOL_API_IMPL void simgui_new_frame(int width, int height, double delta_time) {
     if (io->WantTextInput && !sapp_keyboard_shown()) {
         sapp_show_keyboard(true);
     }
-    if (!io->WantTextInput && sapp_keyboard_shown()) {
+	if (_simgui.hadTextInputLastFrame != io->WantTextInput && io->WantTextInput == false) {
         sapp_show_keyboard(false);
     }
+	_simgui.hadTextInputLastFrame = io->WantTextInput;
     #endif
     #if defined(__cplusplus)
         ImGui::NewFrame();
