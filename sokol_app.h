@@ -6734,7 +6734,8 @@ _SOKOL_PRIVATE void _sapp_win32_run(const sapp_desc* desc) {
             #endif
             _sapp_win32_uwp_app_event(SAPP_EVENTTYPE_RESIZED);
         }
-        if (_sapp.quit_requested) {
+		/* only post close message once on quit */
+        if (_sapp.quit_requested && !_sapp.quit_ordered) {
             PostMessage(_sapp.win32.hwnd, WM_CLOSE, 0, 0);
         }
     }
