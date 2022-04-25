@@ -4455,7 +4455,7 @@ _SOKOL_PRIVATE bool _sapp_app_delegate_didFinishLaunchingWithOptions(NSDictionar
         _sapp.ios.view.autoResizeDrawable = false;
         _sapp.ios.view.userInteractionEnabled = YES;
         _sapp.ios.view.multipleTouchEnabled = YES;
-		if(viewController != nullptr) {
+		if(viewController != nil) {
 			_sapp.ios.view_ctrl = viewController;
 		} else {
 			_sapp.ios.view_ctrl = [[UIViewController alloc] init];
@@ -4533,7 +4533,7 @@ _SOKOL_PRIVATE void _sapp_app_delegate_applicationWillTerminate(UIApplication* a
 
 @implementation _sapp_app_delegate
 - (BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)launchOptions {
-    return _sapp_app_delegate_didFinishLaunchingWithOptions(launchOptions, nullptr);
+    return _sapp_app_delegate_didFinishLaunchingWithOptions(launchOptions, nil);
 }
 
 - (void)applicationWillResignActive:(UIApplication *)application {
