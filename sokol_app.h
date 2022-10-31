@@ -4497,7 +4497,6 @@ _SOKOL_PRIVATE bool _sapp_app_delegate_didFinishLaunchingWithOptions(NSDictionar
         _sapp.ios.view_ctrl.preferredFramesPerSecond = max_fps / _sapp.swap_interval;
         _sapp.ios.window.rootViewController = _sapp.ios.view_ctrl;
     #endif
-    [_sapp.ios.window makeKeyAndVisible];
 
     _sapp.valid = true;
     return YES;
