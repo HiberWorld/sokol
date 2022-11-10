@@ -4498,6 +4498,10 @@ _SOKOL_PRIVATE bool _sapp_app_delegate_didFinishLaunchingWithOptions(NSDictionar
         _sapp.ios.window.rootViewController = _sapp.ios.view_ctrl;
     #endif
 
+    if (viewController == nullptr) {
+        [_sapp.ios.window makeKeyAndVisible];
+    }
+
     _sapp.valid = true;
     return YES;
 }
