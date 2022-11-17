@@ -3675,6 +3675,7 @@ typedef struct {
 typedef struct {
     _sg_slot_t slot;
     _sg_shader_common_t cmn;
+    sg_shader_desc desc;
     struct {
         GLuint prog;
         _sg_gl_shader_attr_t attrs[SG_MAX_VERTEX_ATTRIBUTES];
@@ -6937,26 +6938,35 @@ _SOKOL_PRIVATE sg_resource_state _sg_gl_create_shader(_sg_shader_t* shd, const s
     glDeleteShader(gl_fs);
     _SG_GL_CHECK_ERROR();
 
+    shd->gl.prog = gl_prog;
+	shd->desc = *desc;
+
+    return SG_RESOURCESTATE_INITIAL;
+}
+
+_SOKOL_PRIVATE sg_resource_state _sg_gl_finalize_shader(_sg_shader_t* shd) {
+    SOKOL_ASSERT(shd);
+    SOKOL_ASSERT(shd->gl.prog);
+
     GLint link_status;
-    glGetProgramiv(gl_prog, GL_LINK_STATUS, &link_status);
+    glGetProgramiv(shd->gl.prog, GL_LINK_STATUS, &link_status);
     if (!link_status) {
         GLint log_len = 0;
-        glGetProgramiv(gl_prog, GL_INFO_LOG_LENGTH, &log_len);
+        glGetProgramiv(shd->gl.prog, GL_INFO_LOG_LENGTH, &log_len);
         if (log_len > 0) {
             GLchar* log_buf = (GLchar*) _sg_malloc((size_t)log_len);
-            glGetProgramInfoLog(gl_prog, log_len, &log_len, log_buf);
+            glGetProgramInfoLog(shd->gl.prog, log_len, &log_len, log_buf);
             SG_LOG(log_buf);
             _sg_free(log_buf);
         }
-        glDeleteProgram(gl_prog);
+        glDeleteProgram(shd->gl.prog);
         return SG_RESOURCESTATE_FAILED;
     }
-    shd->gl.prog = gl_prog;
 
     /* resolve uniforms */
     _SG_GL_CHECK_ERROR();
     for (int stage_index = 0; stage_index < SG_NUM_SHADER_STAGES; stage_index++) {
-        const sg_shader_stage_desc* stage_desc = (stage_index == SG_SHADERSTAGE_VS)? &desc->vs : &desc->fs;
+        const sg_shader_stage_desc* stage_desc = (stage_index == SG_SHADERSTAGE_VS)? &shd->desc.vs : &shd->desc.fs;
         _sg_gl_shader_stage_t* gl_stage = &shd->gl.stage[stage_index];
         for (int ub_index = 0; ub_index < shd->cmn.stage[stage_index].num_uniform_blocks; ub_index++) {
             const sg_shader_uniform_block_desc* ub_desc = &stage_desc->uniform_blocks[ub_index];
@@ -6978,7 +6988,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_gl_create_shader(_sg_shader_t* shd, const s
                 u->offset = (uint16_t) cur_uniform_offset;
                 cur_uniform_offset += u_size;
                 if (u_desc->name) {
-                    u->gl_loc = glGetUniformLocation(gl_prog, u_desc->name);
+                    u->gl_loc = glGetUniformLocation(shd->gl.prog, u_desc->name);
                 }
                 else {
                     u->gl_loc = u_index;
@@ -6997,10 +7007,10 @@ _SOKOL_PRIVATE sg_resource_state _sg_gl_create_shader(_sg_shader_t* shd, const s
     _SG_GL_CHECK_ERROR();
     GLuint cur_prog = 0;
     glGetIntegerv(GL_CURRENT_PROGRAM, (GLint*)&cur_prog);
-    glUseProgram(gl_prog);
+    glUseProgram(shd->gl.prog);
     int gl_tex_slot = 0;
     for (int stage_index = 0; stage_index < SG_NUM_SHADER_STAGES; stage_index++) {
-        const sg_shader_stage_desc* stage_desc = (stage_index == SG_SHADERSTAGE_VS)? &desc->vs : &desc->fs;
+        const sg_shader_stage_desc* stage_desc = (stage_index == SG_SHADERSTAGE_VS)? &shd->desc.vs : &shd->desc.fs;
         _sg_gl_shader_stage_t* gl_stage = &shd->gl.stage[stage_index];
         for (int img_index = 0; img_index < shd->cmn.stage[stage_index].num_images; img_index++) {
             const sg_shader_image_desc* img_desc = &stage_desc->images[img_index];
@@ -7008,7 +7018,7 @@ _SOKOL_PRIVATE sg_resource_state _sg_gl_create_shader(_sg_shader_t* shd, const s
             _sg_gl_shader_image_t* gl_img = &gl_stage->images[img_index];
             GLint gl_loc = img_index;
             if (img_desc->name) {
-                gl_loc = glGetUniformLocation(gl_prog, img_desc->name);
+                gl_loc = glGetUniformLocation(shd->gl.prog, img_desc->name);
             }
             if (gl_loc != -1) {
                 gl_img->gl_tex_slot = gl_tex_slot++;
@@ -14556,7 +14566,7 @@ _SOKOL_PRIVATE bool _sg_validate_pipeline_desc(const sg_pipeline_desc* desc) {
         const _sg_shader_t* shd = _sg_lookup_shader(&_sg.pools, desc->shader.id);
         SOKOL_VALIDATE(0 != shd, _SG_VALIDATE_PIPELINEDESC_SHADER);
         if (shd) {
-            SOKOL_VALIDATE(shd->slot.state == SG_RESOURCESTATE_VALID, _SG_VALIDATE_PIPELINEDESC_SHADER);
+            SOKOL_VALIDATE(shd->slot.state == SG_RESOURCESTATE_VALID || shd->slot.state == SG_RESOURCESTATE_INITIAL, _SG_VALIDATE_PIPELINEDESC_SHADER);
             bool attrs_cont = true;
             for (int attr_index = 0; attr_index < SG_MAX_VERTEX_ATTRIBUTES; attr_index++) {
                 const sg_vertex_attr_desc* a_desc = &desc->layout.attrs[attr_index];
@@ -15203,7 +15213,23 @@ _SOKOL_PRIVATE void _sg_init_shader(sg_shader shd_id, const sg_shader_desc* desc
     else {
         shd->slot.state = SG_RESOURCESTATE_FAILED;
     }
-    SOKOL_ASSERT((shd->slot.state == SG_RESOURCESTATE_VALID)||(shd->slot.state == SG_RESOURCESTATE_FAILED));
+    SOKOL_ASSERT((shd->slot.state == SG_RESOURCESTATE_INITIAL)||(shd->slot.state == SG_RESOURCESTATE_VALID)||(shd->slot.state == SG_RESOURCESTATE_FAILED));
+}
+
+static inline sg_resource_state _sg_finalize_shader(_sg_shader_t* shd) {
+    #if defined(_SOKOL_ANY_GL)
+    return _sg_gl_finalize_shader(shd);
+    #elif defined(SOKOL_METAL)
+    return shd->slot.state;
+    #elif defined(SOKOL_D3D11)
+    return shd->slot.state;
+    #elif defined(SOKOL_WGPU)
+    return shd->slot.state;
+    #elif defined(SOKOL_DUMMY_BACKEND)
+    return shd->slot.state;
+    #else
+    #error("INVALID BACKEND");
+    #endif
 }
 
 _SOKOL_PRIVATE void _sg_init_pipeline(sg_pipeline pip_id, const sg_pipeline_desc* desc) {
@@ -15213,6 +15239,11 @@ _SOKOL_PRIVATE void _sg_init_pipeline(sg_pipeline pip_id, const sg_pipeline_desc
     pip->slot.ctx_id = _sg.active_context.id;
     if (_sg_validate_pipeline_desc(desc)) {
         _sg_shader_t* shd = _sg_lookup_shader(&_sg.pools, desc->shader.id);
+
+        if(shd && (shd->slot.state == SG_RESOURCESTATE_INITIAL)) {
+			shd->slot.state = _sg_finalize_shader(shd);
+		}
+
         if (shd && (shd->slot.state == SG_RESOURCESTATE_VALID)) {
             pip->slot.state = _sg_create_pipeline(pip, shd, desc);
         }
