@@ -5273,7 +5273,7 @@ _SOKOL_PRIVATE EM_BOOL _sapp_emsc_mouse_cb(int emsc_type, const EmscriptenMouseE
         }
     }
     _sapp_emsc_update_keyboard_state();
-    return true;
+    return false; // False or else window wont get focus when running in iframe
 }
 
 _SOKOL_PRIVATE EM_BOOL _sapp_emsc_wheel_cb(int emsc_type, const EmscriptenWheelEvent* emsc_event, void* user_data) {
