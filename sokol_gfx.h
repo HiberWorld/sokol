@@ -4031,6 +4031,7 @@ typedef struct {
 typedef struct {
     _sg_slot_t slot;
     _sg_shader_common_t cmn;
+    sg_shader_desc desc;
     struct {
         GLuint prog;
         _sg_gl_shader_attr_t attrs[SG_MAX_VERTEX_ATTRIBUTES];
@@ -7330,6 +7331,19 @@ _SOKOL_PRIVATE sg_resource_state _sg_gl_create_shader(_sg_shader_t* shd, const s
     glDeleteShader(gl_fs);
     _SG_GL_CHECK_ERROR();
 
+    shd->gl.prog = gl_prog;
+	shd->desc = *desc;
+
+    return SG_RESOURCESTATE_INITIAL;
+}
+
+_SOKOL_PRIVATE sg_resource_state _sg_gl_finalize_shader(_sg_shader_t* shd) {
+    SOKOL_ASSERT(shd);
+    SOKOL_ASSERT(shd->gl.prog);
+
+    const sg_shader_desc* desc = &shd->desc;
+    GLuint gl_prog = shd->gl.prog;
+
     GLint link_status;
     glGetProgramiv(gl_prog, GL_LINK_STATUS, &link_status);
     if (!link_status) {
@@ -7345,7 +7359,6 @@ _SOKOL_PRIVATE sg_resource_state _sg_gl_create_shader(_sg_shader_t* shd, const s
         glDeleteProgram(gl_prog);
         return SG_RESOURCESTATE_FAILED;
     }
-    shd->gl.prog = gl_prog;
 
     /* resolve uniforms */
     _SG_GL_CHECK_ERROR();
@@ -13980,6 +13993,22 @@ static inline sg_resource_state _sg_create_shader(_sg_shader_t* shd, const sg_sh
     #endif
 }
 
+static inline sg_resource_state _sg_finalize_shader(_sg_shader_t* shd) {
+    #if defined(_SOKOL_ANY_GL)
+    return _sg_gl_finalize_shader(shd);
+    #elif defined(SOKOL_METAL)
+    return shd->slot.state;
+    #elif defined(SOKOL_D3D11)
+    return shd->slot.state;
+    #elif defined(SOKOL_WGPU)
+    return shd->slot.state;
+    #elif defined(SOKOL_DUMMY_BACKEND)
+    return shd->slot.state;
+    #else
+    #error("INVALID BACKEND");
+    #endif
+}
+
 static inline void _sg_discard_shader(_sg_shader_t* shd) {
     #if defined(_SOKOL_ANY_GL)
     _sg_gl_discard_shader(shd);
@@ -14935,7 +14964,7 @@ _SOKOL_PRIVATE bool _sg_validate_pipeline_desc(const sg_pipeline_desc* desc) {
         const _sg_shader_t* shd = _sg_lookup_shader(&_sg.pools, desc->shader.id);
         _SG_VALIDATE(0 != shd, VALIDATE_PIPELINEDESC_SHADER);
         if (shd) {
-            _SG_VALIDATE(shd->slot.state == SG_RESOURCESTATE_VALID, VALIDATE_PIPELINEDESC_SHADER);
+            _SG_VALIDATE(shd->slot.state == SG_RESOURCESTATE_VALID || shd->slot.state == SG_RESOURCESTATE_INITIAL, _SG_VALIDATE_PIPELINEDESC_SHADER);
             bool attrs_cont = true;
             for (int attr_index = 0; attr_index < SG_MAX_VERTEX_ATTRIBUTES; attr_index++) {
                 const sg_vertex_attr_desc* a_desc = &desc->layout.attrs[attr_index];
@@ -15612,6 +15641,11 @@ _SOKOL_PRIVATE void _sg_init_pipeline(_sg_pipeline_t* pip, const sg_pipeline_des
     pip->slot.ctx_id = _sg.active_context.id;
     if (_sg_validate_pipeline_desc(desc)) {
         _sg_shader_t* shd = _sg_lookup_shader(&_sg.pools, desc->shader.id);
+
+        if(shd && (shd->slot.state == SG_RESOURCESTATE_INITIAL)) {
+			shd->slot.state = _sg_finalize_shader(shd);
+		}
+
         if (shd && (shd->slot.state == SG_RESOURCESTATE_VALID)) {
             pip->slot.state = _sg_create_pipeline(pip, shd, desc);
         }
