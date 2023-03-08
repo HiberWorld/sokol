@@ -14964,7 +14964,7 @@ _SOKOL_PRIVATE bool _sg_validate_pipeline_desc(const sg_pipeline_desc* desc) {
         const _sg_shader_t* shd = _sg_lookup_shader(&_sg.pools, desc->shader.id);
         _SG_VALIDATE(0 != shd, VALIDATE_PIPELINEDESC_SHADER);
         if (shd) {
-            _SG_VALIDATE(shd->slot.state == SG_RESOURCESTATE_VALID || shd->slot.state == SG_RESOURCESTATE_INITIAL, _SG_VALIDATE_PIPELINEDESC_SHADER);
+            _SG_VALIDATE(shd->slot.state == SG_RESOURCESTATE_VALID || shd->slot.state == SG_RESOURCESTATE_INITIAL, VALIDATE_PIPELINEDESC_SHADER);
             bool attrs_cont = true;
             for (int attr_index = 0; attr_index < SG_MAX_VERTEX_ATTRIBUTES; attr_index++) {
                 const sg_vertex_attr_desc* a_desc = &desc->layout.attrs[attr_index];
