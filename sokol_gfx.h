@@ -16398,7 +16398,7 @@ SOKOL_API_IMPL sg_shader sg_make_shader(const sg_shader_desc* desc) {
         _sg_shader_t* shd = _sg_shader_at(&_sg.pools, shd_id.id);
         SOKOL_ASSERT(shd && (shd->slot.state == SG_RESOURCESTATE_ALLOC));
         _sg_init_shader(shd, &desc_def);
-        SOKOL_ASSERT((shd->slot.state == SG_RESOURCESTATE_VALID) || (shd->slot.state == SG_RESOURCESTATE_FAILED));
+        SOKOL_ASSERT((shd->slot.state == SG_RESOURCESTATE_INITIAL) || (shd->slot.state == SG_RESOURCESTATE_VALID) || (shd->slot.state == SG_RESOURCESTATE_FAILED));
     }
     _SG_TRACE_ARGS(make_shader, &desc_def, shd_id);
     return shd_id;
