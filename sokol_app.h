@@ -5165,10 +5165,6 @@ EMSCRIPTEN_KEEPALIVE void _sapp_emsc_do_resize() {
 } /* extern "C" */
 #endif
 
-#ifdef __cplusplus
-} /* extern "C" */
-#endif
-
 EM_JS(int, sapp_js_delay_resize, (void), {
     setTimeout(() => {
         ccall('_sapp_emsc_do_resize','void');
