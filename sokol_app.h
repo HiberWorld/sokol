@@ -5128,43 +5128,21 @@ _SOKOL_PRIVATE uint32_t _sapp_emsc_touch_event_mods(const EmscriptenTouchEvent* 
     return m;
 }
 
-_SOKOL_PRIVATE EM_BOOL _sapp_emsc_size_changed(int event_type, const EmscriptenUiEvent* ui_event, void* user_data) {
-    _SOKOL_UNUSED(event_type);
-    _SOKOL_UNUSED(user_data);
+/* JS functions to get window size after orientation change */
+EM_JS(int, sapp_js_get_inner_height, (void), {
+    return window.innerHeight;
+});
+EM_JS(int, sapp_js_get_inner_width, (void), {
+    return window.innerWidth;
+});
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+EMSCRIPTEN_KEEPALIVE void _sapp_emsc_do_resize() {
     double w, h;
     emscripten_get_element_css_size(_sapp.html5_canvas_selector, &w, &h);
-    /* The above method might report zero when toggling HTML5 fullscreen,
-       in that case use the window's inner width reported by the
-       emscripten event. This works ok when toggling *into* fullscreen
-       but doesn't properly restore the previous canvas size when switching
-       back from fullscreen.
-
-       In general, due to the HTML5's fullscreen API's flaky nature it is
-       recommended to use 'soft fullscreen' (stretching the WebGL canvas
-       over the browser windows client rect) with a CSS definition like this:
-
-            position: absolute;
-            top: 0px;
-            left: 0px;
-            margin: 0px;
-            border: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            display: block;
-    */
-    if (w < 1.0) {
-        w = ui_event->windowInnerWidth;
-    }
-    else {
-        _sapp.window_width = (int)roundf(w);
-    }
-    if (h < 1.0) {
-        h = ui_event->windowInnerHeight;
-    }
-    else {
-        _sapp.window_height = (int)roundf(h);
-    }
     if (_sapp.desc.high_dpi) {
         _sapp.dpi_scale = emscripten_get_device_pixel_ratio();
     }
@@ -5182,6 +5160,10 @@ _SOKOL_PRIVATE EM_BOOL _sapp_emsc_size_changed(int event_type, const EmscriptenU
         _sapp_call_event(&_sapp.event);
     }
 }
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #ifdef __cplusplus
 } /* extern "C" */
