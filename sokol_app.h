@@ -5141,6 +5141,11 @@ extern "C" {
 #endif
 
 EMSCRIPTEN_KEEPALIVE void _sapp_emsc_do_resize() {
+    // If sapp was destroyed before this resize event was handled, do nothing.
+    if(!_sapp.valid) {
+        return;
+    }
+
     double w, h;
     emscripten_get_element_css_size(_sapp.html5_canvas_selector, &w, &h);
     if (_sapp.desc.high_dpi) {
