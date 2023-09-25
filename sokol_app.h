@@ -4990,7 +4990,9 @@ _SOKOL_PRIVATE EM_BOOL _sapp_emsc_pointerlockerror_cb(int emsc_type, const void*
 EM_JS(void, sapp_js_request_pointerlock, (void), {
     if (Module.sapp_emsc_target) {
         if (Module.sapp_emsc_target.requestPointerLock) {
-            Module.sapp_emsc_target.requestPointerLock();
+            Module.sapp_emsc_target.requestPointerLock({
+                unadjustedMovement: true,
+            });
         }
     }
 });
