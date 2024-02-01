@@ -5175,7 +5175,7 @@ EMSCRIPTEN_KEEPALIVE void _sapp_emsc_do_resize() {
 EM_JS(int, sapp_js_delay_resize, (void), {
     setTimeout(() => {
         ccall('_sapp_emsc_do_resize','void');
-    }, 50);
+    }, 350);
 });
 
 _SOKOL_PRIVATE EM_BOOL _sapp_emsc_orientation_changed(int event_type, const EmscriptenOrientationChangeEvent* orientationChangeEvent, void* user_data) {
