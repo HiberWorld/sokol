@@ -3116,6 +3116,10 @@ _SOKOL_PRIVATE sapp_desc _sapp_desc_defaults(const sapp_desc* desc) {
     return res;
 }
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 _SOKOL_PRIVATE void _sapp_init_state(const sapp_desc* desc) {
     SOKOL_ASSERT(desc);
     SOKOL_ASSERT(desc->width >= 0);
@@ -3158,6 +3162,10 @@ _SOKOL_PRIVATE void _sapp_init_state(const sapp_desc* desc) {
     _sapp.mouse.shown = true;
     _sapp_timing_init(&_sapp.timing);
 }
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
 
 _SOKOL_PRIVATE void _sapp_discard_state(void) {
     if (_sapp.clipboard.enabled) {
@@ -4532,6 +4540,22 @@ _SOKOL_PRIVATE void _sapp_ios_update_dimensions(void) {
 _SOKOL_PRIVATE void _sapp_ios_frame(void) {
     _sapp_ios_update_dimensions();
     _sapp_frame();
+
+    // hiber: make sapp_request_quit work in ios lib
+	/* quit-handling */
+    if (_sapp.quit_requested) {
+        _sapp_init_event(SAPP_EVENTTYPE_QUIT_REQUESTED);
+        _sapp_call_event(&_sapp.event);
+        if (_sapp.quit_requested) {
+            _sapp.quit_ordered = true;
+        }
+    }
+    if (_sapp.quit_ordered) {
+        _sapp_call_cleanup();
+		_sapp_ios_discard_state();
+		_sapp_discard_state();
+    }
+    // End hiber
 }
 
 _SOKOL_PRIVATE void _sapp_ios_show_keyboard(bool shown) {
@@ -4568,8 +4592,14 @@ _SOKOL_PRIVATE void _sapp_ios_show_keyboard(bool shown) {
     }
 }
 
-@implementation _sapp_app_delegate
-- (BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)launchOptions {
+// HiberNote: Below is our change. (Peter)
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
+_SOKOL_PRIVATE bool _sapp_app_delegate_didFinishLaunchingWithOptions(NSDictionary* launchOptions, UIViewController* viewController)
+{
     CGRect screen_rect = UIScreen.mainScreen.bounds;
     _sapp.ios.window = [[UIWindow alloc] initWithFrame:screen_rect];
     _sapp.window_width = (int)roundf(screen_rect.size.width);
@@ -4598,7 +4628,11 @@ _SOKOL_PRIVATE void _sapp_ios_show_keyboard(bool shown) {
         _sapp.ios.view.autoResizeDrawable = false;
         _sapp.ios.view.userInteractionEnabled = YES;
         _sapp.ios.view.multipleTouchEnabled = YES;
-        _sapp.ios.view_ctrl = [[UIViewController alloc] init];
+		if(viewController != nil) {
+			_sapp.ios.view_ctrl = viewController;
+		} else {
+			_sapp.ios.view_ctrl = [[UIViewController alloc] init];
+		}
         _sapp.ios.view_ctrl.modalPresentationStyle = UIModalPresentationFullScreen;
         _sapp.ios.view_ctrl.view = _sapp.ios.view;
         _sapp.ios.window.rootViewController = _sapp.ios.view_ctrl;
@@ -4626,24 +4660,54 @@ _SOKOL_PRIVATE void _sapp_ios_show_keyboard(bool shown) {
         _sapp.ios.view_ctrl.preferredFramesPerSecond = max_fps / _sapp.swap_interval;
         _sapp.ios.window.rootViewController = _sapp.ios.view_ctrl;
     #endif
-    [_sapp.ios.window makeKeyAndVisible];
+
+    if (viewController == nullptr) {
+        [_sapp.ios.window makeKeyAndVisible];
+    }
 
     _sapp.valid = true;
     return YES;
 }
 
-- (void)applicationWillResignActive:(UIApplication *)application {
+_SOKOL_PRIVATE void _sapp_app_delegate_applicationWillResignActive(UIApplication* application)
+{
     if (!_sapp.ios.suspended) {
         _sapp.ios.suspended = true;
         _sapp_ios_app_event(SAPP_EVENTTYPE_SUSPENDED);
     }
 }
 
-- (void)applicationDidBecomeActive:(UIApplication *)application {
+_SOKOL_PRIVATE void _sapp_app_delegate_applicationDidBecomeActive(UIApplication* application)
+{
     if (_sapp.ios.suspended) {
         _sapp.ios.suspended = false;
         _sapp_ios_app_event(SAPP_EVENTTYPE_RESUMED);
     }
+}
+
+_SOKOL_PRIVATE void _sapp_app_delegate_applicationWillTerminate(UIApplication* application)
+{
+    _SOKOL_UNUSED(application);
+    _sapp_call_cleanup();
+    _sapp_ios_discard_state();
+    _sapp_discard_state();
+}
+
+#if defined(__cplusplus)
+} // extern "C"
+#endif
+
+@implementation _sapp_app_delegate
+- (BOOL)application:(UIApplication*)application didFinishLaunchingWithOptions:(NSDictionary*)launchOptions {
+    return _sapp_app_delegate_didFinishLaunchingWithOptions(launchOptions, nil);
+}
+
+- (void)applicationWillResignActive:(UIApplication *)application {
+    _sapp_app_delegate_applicationWillResignActive(application);
+}
+
+- (void)applicationDidBecomeActive:(UIApplication *)application {
+    _sapp_app_delegate_applicationDidBecomeActive(application);
 }
 
 /* NOTE: this method will rarely ever be called, iOS application
@@ -4651,10 +4715,7 @@ _SOKOL_PRIVATE void _sapp_ios_show_keyboard(bool shown) {
     by the operating system.
 */
 - (void)applicationWillTerminate:(UIApplication *)application {
-    _SOKOL_UNUSED(application);
-    _sapp_call_cleanup();
-    _sapp_ios_discard_state();
-    _sapp_discard_state();
+    _sapp_app_delegate_applicationWillTerminate(application);
 }
 @end
 
@@ -5038,7 +5099,9 @@ _SOKOL_PRIVATE EM_BOOL _sapp_emsc_pointerlockerror_cb(int emsc_type, const void*
 EM_JS(void, sapp_js_request_pointerlock, (void), {
     if (Module.sapp_emsc_target) {
         if (Module.sapp_emsc_target.requestPointerLock) {
-            Module.sapp_emsc_target.requestPointerLock();
+            Module.sapp_emsc_target.requestPointerLock({
+                unadjustedMovement: true,
+            });
         }
     }
 });
@@ -5175,9 +5238,11 @@ _SOKOL_PRIVATE uint32_t _sapp_emsc_touch_event_mods(const EmscriptenTouchEvent* 
 _SOKOL_PRIVATE void _sapp_emsc_wgpu_size_changed(void);
 #endif
 
-_SOKOL_PRIVATE EM_BOOL _sapp_emsc_size_changed(int event_type, const EmscriptenUiEvent* ui_event, void* user_data) {
-    _SOKOL_UNUSED(event_type);
-    _SOKOL_UNUSED(user_data);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+_SOKOL_PRIVATE EM_BOOL _sapp_emsc_do_resize() {
     double w, h;
     emscripten_get_element_css_size(_sapp.html5_canvas_selector, &w, &h);
     /* The above method might report zero when toggling HTML5 fullscreen,
@@ -5227,6 +5292,31 @@ _SOKOL_PRIVATE EM_BOOL _sapp_emsc_size_changed(int event_type, const EmscriptenU
         _sapp_init_event(SAPP_EVENTTYPE_RESIZED);
         _sapp_call_event(&_sapp.event);
     }
+    return true;
+}
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
+
+EM_JS(int, sapp_js_delay_resize, (void), {
+    setTimeout(() => {
+        ccall('_sapp_emsc_do_resize','void');
+    }, 350);
+});
+
+_SOKOL_PRIVATE EM_BOOL _sapp_emsc_orientation_changed(int event_type, const EmscriptenOrientationChangeEvent* orientationChangeEvent, void* user_data) {
+    _SOKOL_UNUSED(event_type);
+    _SOKOL_UNUSED(orientationChangeEvent);
+    _SOKOL_UNUSED(user_data);
+    sapp_js_delay_resize();
+    return true;
+}
+
+_SOKOL_PRIVATE EM_BOOL _sapp_emsc_size_changed(int event_type, const EmscriptenUiEvent* ui_event, void* user_data) {
+    _SOKOL_UNUSED(event_type);
+    _SOKOL_UNUSED(user_data);
+    sapp_js_delay_resize();
     return true;
 }
 
@@ -5839,8 +5929,8 @@ _SOKOL_PRIVATE void _sapp_emsc_register_eventhandlers(void) {
     emscripten_set_touchcancel_callback(_sapp.html5_canvas_selector, 0, true, _sapp_emsc_touch_cb);
     emscripten_set_pointerlockchange_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT, 0, true, _sapp_emsc_pointerlockchange_cb);
     emscripten_set_pointerlockerror_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT, 0, true, _sapp_emsc_pointerlockerror_cb);
-    emscripten_set_focus_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, true, _sapp_emsc_focus_cb);
-    emscripten_set_blur_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, true, _sapp_emsc_blur_cb);
+    emscripten_set_focus_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, false, _sapp_emsc_focus_cb);
+    emscripten_set_blur_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, false, _sapp_emsc_blur_cb);
     sapp_js_add_beforeunload_listener();
     if (_sapp.clipboard.enabled) {
         sapp_js_add_clipboard_listener();
@@ -5933,6 +6023,7 @@ _SOKOL_PRIVATE void _sapp_emsc_run(const sapp_desc* desc) {
     else {
         emscripten_get_element_css_size(_sapp.html5_canvas_selector, &w, &h);
         emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, false, _sapp_emsc_size_changed);
+        emscripten_set_orientationchange_callback(0, false, _sapp_emsc_orientation_changed);
     }
     if (_sapp.desc.high_dpi) {
         _sapp.dpi_scale = emscripten_get_device_pixel_ratio();
@@ -8114,7 +8205,7 @@ _SOKOL_PRIVATE bool _sapp_android_init_egl(void) {
         EGL_BLUE_SIZE, 8,
         EGL_ALPHA_SIZE, alpha_size,
         EGL_DEPTH_SIZE, 16,
-        EGL_STENCIL_SIZE, 0,
+        EGL_STENCIL_SIZE, 8,
         EGL_NONE,
     };
     EGLConfig available_cfgs[32];
@@ -8128,13 +8219,14 @@ _SOKOL_PRIVATE bool _sapp_android_init_egl(void) {
     bool exact_cfg_found = false;
     for (int i = 0; i < cfg_count; ++i) {
         EGLConfig c = available_cfgs[i];
-        EGLint r, g, b, a, d;
+        EGLint r, g, b, a, d, s;
         if (eglGetConfigAttrib(display, c, EGL_RED_SIZE, &r) == EGL_TRUE &&
             eglGetConfigAttrib(display, c, EGL_GREEN_SIZE, &g) == EGL_TRUE &&
             eglGetConfigAttrib(display, c, EGL_BLUE_SIZE, &b) == EGL_TRUE &&
             eglGetConfigAttrib(display, c, EGL_ALPHA_SIZE, &a) == EGL_TRUE &&
             eglGetConfigAttrib(display, c, EGL_DEPTH_SIZE, &d) == EGL_TRUE &&
-            r == 8 && g == 8 && b == 8 && (alpha_size == 0 || a == alpha_size) && d == 16) {
+            eglGetConfigAttrib(display, c, EGL_STENCIL_SIZE, &s) == EGL_TRUE &&
+            r == 8 && g == 8 && b == 8 && (alpha_size == 0 || a == alpha_size) && d == 16 && s == 8) {
             exact_cfg_found = true;
             config = c;
             break;

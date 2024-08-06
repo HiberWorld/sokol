@@ -5333,6 +5333,7 @@ typedef struct {
 typedef struct {
     _sg_slot_t slot;
     _sg_shader_common_t cmn;
+    sg_shader_desc desc;
     struct {
         GLuint prog;
         _sg_gl_shader_attr_t attrs[SG_MAX_VERTEX_ATTRIBUTES];
@@ -8492,6 +8493,19 @@ _SOKOL_PRIVATE sg_resource_state _sg_gl_create_shader(_sg_shader_t* shd, const s
     glDeleteShader(gl_fs);
     _SG_GL_CHECK_ERROR();
 
+    shd->gl.prog = gl_prog;
+	shd->desc = *desc;
+
+    return SG_RESOURCESTATE_INITIAL;
+}
+
+_SOKOL_PRIVATE sg_resource_state _sg_gl_finalize_shader(_sg_shader_t* shd) {
+    SOKOL_ASSERT(shd);
+    SOKOL_ASSERT(shd->gl.prog);
+
+    const sg_shader_desc* desc = &shd->desc;
+    GLuint gl_prog = shd->gl.prog;
+
     GLint link_status;
     glGetProgramiv(gl_prog, GL_LINK_STATUS, &link_status);
     if (!link_status) {
@@ -8507,7 +8521,6 @@ _SOKOL_PRIVATE sg_resource_state _sg_gl_create_shader(_sg_shader_t* shd, const s
         glDeleteProgram(gl_prog);
         return SG_RESOURCESTATE_FAILED;
     }
-    shd->gl.prog = gl_prog;
 
     // resolve uniforms
     _SG_GL_CHECK_ERROR();
@@ -12315,6 +12328,15 @@ _SOKOL_PRIVATE void _sg_mtl_discard_buffer(_sg_buffer_t* buf) {
 }
 
 _SOKOL_PRIVATE void _sg_mtl_copy_image_data(const _sg_image_t* img, __unsafe_unretained id<MTLTexture> mtl_tex, const sg_image_data* data) {
+
+    // Hiber Edit Peter 2021-09-30: Need to pass 0 to bytesPerImage for PVRTC textures.
+    // Issue: https://github.com/floooh/sokol/issues/566
+    bool isPVRTC = false;
+    if (img->cmn.pixel_format == SG_PIXELFORMAT_PVRTC_RGB_4BPP ||
+        img->cmn.pixel_format == SG_PIXELFORMAT_PVRTC_RGBA_4BPP) {
+        isPVRTC = true;
+    }
+
     const int num_faces = (img->cmn.type == SG_IMAGETYPE_CUBE) ? 6:1;
     const int num_slices = (img->cmn.type == SG_IMAGETYPE_ARRAY) ? img->cmn.num_slices : 1;
     for (int face_index = 0; face_index < num_faces; face_index++) {
@@ -15400,6 +15422,22 @@ static inline sg_resource_state _sg_create_shader(_sg_shader_t* shd, const sg_sh
     #endif
 }
 
+static inline sg_resource_state _sg_finalize_shader(_sg_shader_t* shd) {
+    #if defined(_SOKOL_ANY_GL)
+    return _sg_gl_finalize_shader(shd);
+    #elif defined(SOKOL_METAL)
+    return shd->slot.state;
+    #elif defined(SOKOL_D3D11)
+    return shd->slot.state;
+    #elif defined(SOKOL_WGPU)
+    return shd->slot.state;
+    #elif defined(SOKOL_DUMMY_BACKEND)
+    return shd->slot.state;
+    #else
+    #error("INVALID BACKEND");
+    #endif
+}
+
 static inline void _sg_discard_shader(_sg_shader_t* shd) {
     #if defined(_SOKOL_ANY_GL)
     _sg_gl_discard_shader(shd);
@@ -16451,7 +16489,7 @@ _SOKOL_PRIVATE bool _sg_validate_pipeline_desc(const sg_pipeline_desc* desc) {
         const _sg_shader_t* shd = _sg_lookup_shader(&_sg.pools, desc->shader.id);
         _SG_VALIDATE(0 != shd, VALIDATE_PIPELINEDESC_SHADER);
         if (shd) {
-            _SG_VALIDATE(shd->slot.state == SG_RESOURCESTATE_VALID, VALIDATE_PIPELINEDESC_SHADER);
+            _SG_VALIDATE(shd->slot.state == SG_RESOURCESTATE_VALID || shd->slot.state == SG_RESOURCESTATE_INITIAL, VALIDATE_PIPELINEDESC_SHADER);
             bool attrs_cont = true;
             for (int attr_index = 0; attr_index < SG_MAX_VERTEX_ATTRIBUTES; attr_index++) {
                 const sg_vertex_attr_state* a_state = &desc->layout.attrs[attr_index];
@@ -17375,7 +17413,7 @@ _SOKOL_PRIVATE void _sg_init_shader(_sg_shader_t* shd, const sg_shader_desc* des
     } else {
         shd->slot.state = SG_RESOURCESTATE_FAILED;
     }
-    SOKOL_ASSERT((shd->slot.state == SG_RESOURCESTATE_VALID)||(shd->slot.state == SG_RESOURCESTATE_FAILED));
+    SOKOL_ASSERT((shd->slot.state == SG_RESOURCESTATE_INITIAL)||(shd->slot.state == SG_RESOURCESTATE_VALID)||(shd->slot.state == SG_RESOURCESTATE_FAILED));
 }
 
 _SOKOL_PRIVATE void _sg_init_pipeline(_sg_pipeline_t* pip, const sg_pipeline_desc* desc) {
@@ -17383,6 +17421,11 @@ _SOKOL_PRIVATE void _sg_init_pipeline(_sg_pipeline_t* pip, const sg_pipeline_des
     SOKOL_ASSERT(desc);
     if (_sg_validate_pipeline_desc(desc)) {
         _sg_shader_t* shd = _sg_lookup_shader(&_sg.pools, desc->shader.id);
+
+        if(shd && (shd->slot.state == SG_RESOURCESTATE_INITIAL)) {
+			shd->slot.state = _sg_finalize_shader(shd);
+		}
+
         if (shd && (shd->slot.state == SG_RESOURCESTATE_VALID)) {
             _sg_pipeline_common_init(&pip->cmn, desc);
             pip->slot.state = _sg_create_pipeline(pip, shd, desc);
@@ -18170,7 +18213,7 @@ SOKOL_API_IMPL sg_shader sg_make_shader(const sg_shader_desc* desc) {
         _sg_shader_t* shd = _sg_shader_at(&_sg.pools, shd_id.id);
         SOKOL_ASSERT(shd && (shd->slot.state == SG_RESOURCESTATE_ALLOC));
         _sg_init_shader(shd, &desc_def);
-        SOKOL_ASSERT((shd->slot.state == SG_RESOURCESTATE_VALID) || (shd->slot.state == SG_RESOURCESTATE_FAILED));
+        SOKOL_ASSERT((shd->slot.state == SG_RESOURCESTATE_INITIAL) || (shd->slot.state == SG_RESOURCESTATE_VALID) || (shd->slot.state == SG_RESOURCESTATE_FAILED));
     }
     _SG_TRACE_ARGS(make_shader, &desc_def, shd_id);
     return shd_id;

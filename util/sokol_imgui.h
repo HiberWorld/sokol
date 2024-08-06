@@ -679,6 +679,7 @@ typedef struct {
     sg_range indices;
     bool is_osx;
     _simgui_image_pool_t image_pool;
+    bool hadTextInputLastFrame;
 } _simgui_state_t;
 static _simgui_state_t _simgui;
 
@@ -2536,9 +2537,11 @@ SOKOL_API_IMPL void simgui_new_frame(const simgui_frame_desc_t* desc) {
         if (io->WantTextInput && !sapp_keyboard_shown()) {
             sapp_show_keyboard(true);
         }
-        if (!io->WantTextInput && sapp_keyboard_shown()) {
+        if (_simgui.hadTextInputLastFrame && !io->WantTextInput) {
             sapp_show_keyboard(false);
         }
+	    _simgui.hadTextInputLastFrame = io->WantTextInput;
+
         if (!_simgui.desc.disable_set_mouse_cursor) {
             #if defined(__cplusplus)
                 ImGuiMouseCursor imgui_cursor = ImGui::GetMouseCursor();

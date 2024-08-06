@@ -288,6 +288,7 @@ SOKOL_FONTSTASH_API_DECL uint32_t sfons_rgba(uint8_t r, uint8_t g, uint8_t b, ui
     on macOS and Windows)
 
     @vs vs
+    @glsl_options fixup_clipspace
     uniform vs_params {
         uniform mat4 mvp;
         uniform mat4 tm;
@@ -1652,6 +1653,12 @@ static int _sfons_render_create(void* user_ptr, int width, int height) {
         pip_desc.colors[0].blend.enabled = true;
         pip_desc.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA;
         pip_desc.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+
+
+		// HIBER EDIT BY PETER HILLERSTRÖM
+		pip_desc.depth.compare = SG_COMPAREFUNC_LESS_EQUAL;
+
+
         sfons->pip = sgl_make_pipeline(&pip_desc);
     }
 
