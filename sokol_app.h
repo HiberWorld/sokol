@@ -5242,7 +5242,7 @@ _SOKOL_PRIVATE void _sapp_emsc_wgpu_size_changed(void);
 extern "C" {
 #endif
 
-_SOKOL_PRIVATE EM_BOOL _sapp_emsc_do_resize() {
+EMSCRIPTEN_KEEPALIVE EM_BOOL _sapp_emsc_do_resize() {
     double w, h;
     emscripten_get_element_css_size(_sapp.html5_canvas_selector, &w, &h);
     /* The above method might report zero when toggling HTML5 fullscreen,
@@ -5265,18 +5265,9 @@ _SOKOL_PRIVATE EM_BOOL _sapp_emsc_do_resize() {
             overflow: hidden;
             display: block;
     */
-    if (w < 1.0) {
-        w = ui_event->windowInnerWidth;
-    }
-    else {
-        _sapp.window_width = (int)roundf(w);
-    }
-    if (h < 1.0) {
-        h = ui_event->windowInnerHeight;
-    }
-    else {
-        _sapp.window_height = (int)roundf(h);
-    }
+    _sapp.window_width = (int)roundf(w);
+    _sapp.window_height = (int)roundf(h);
+
     if (_sapp.desc.high_dpi) {
         _sapp.dpi_scale = emscripten_get_device_pixel_ratio();
     }
